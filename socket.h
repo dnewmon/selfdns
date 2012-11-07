@@ -47,6 +47,8 @@ public:
 	int SendTo(const void *msg, size_t len, int flags, const sockaddr *to, socklen_t tolen);
 	int Recieve(void *msg, size_t len, int flags);
 	int RecieveFrom(void *buf, size_t len, int flags, sockaddr *from, socklen_t *fromlen);
+	
+	bool operator == (const Socket & socket);
 };
 
 #endif // SOCKET_H

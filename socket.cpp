@@ -38,9 +38,9 @@ int Socket::Select(Socket * const *sockets,
 	
 	fd_set read_set, write_set, error_set;
 	
-	bzero(readable, sizeof(Socket *) * socketCount);
-	bzero(writeable, sizeof(Socket *) * socketCount);
-	bzero(errored, sizeof(Socket *) * socketCount);
+	bzero(*readable, sizeof(Socket *) * (socketCount + 1));
+	bzero(*writeable, sizeof(Socket *) * (socketCount + 1));
+	bzero(*errored, sizeof(Socket *) * (socketCount + 1));
 	
 	FD_ZERO(&read_set);
 	FD_ZERO(&write_set);
@@ -141,3 +141,7 @@ int Socket::RecieveFrom(void* buf, size_t len, int flags, sockaddr* from, sockle
 	return recvfrom(this->m_socketfd, buf, len, flags, from, fromlen);
 }
 
+bool Socket::operator==(const Socket& socket)
+{
+	return this->m_socketfd == socket.m_socketfd;
+}
