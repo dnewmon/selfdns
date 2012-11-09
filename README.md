@@ -1,7 +1,7 @@
 selfdns
 =======
 
-A DNS Server that resolves to itself on any domain request.
+A simple DNS server that resolves to itself when asked for any domain request.
 
 
 Development Status
