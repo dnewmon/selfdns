@@ -29,6 +29,19 @@ Socket *Socket::UdpSocket()
 	return new Socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 }
 
+int Socket::AddToSet(Socket* socket, fd_set *set, int lastMax)
+{
+	FD_SET(socket->m_socketfd, set);
+	
+	return (socket->m_socketfd > lastMax ? (socket->m_socketfd + 1) : lastMax);
+}
+
+bool Socket::IsSet(Socket* socket, fd_set *set)
+{
+	return FD_ISSET(socket->m_socketfd, set);
+}
+
+
 int Socket::Select(Socket * const *sockets, 
 			    Socket **readable, Socket **writeable, Socket **errored, 
 			    size_t socketCount, timeval *timeout)
@@ -38,9 +51,9 @@ int Socket::Select(Socket * const *sockets,
 	
 	fd_set read_set, write_set, error_set;
 	
-	bzero(*readable, sizeof(Socket *) * (socketCount + 1));
-	bzero(*writeable, sizeof(Socket *) * (socketCount + 1));
-	bzero(*errored, sizeof(Socket *) * (socketCount + 1));
+	bzero(readable, sizeof(Socket *) * (socketCount + 1));
+	bzero(writeable, sizeof(Socket *) * (socketCount + 1));
+	bzero(errored, sizeof(Socket *) * (socketCount + 1));
 	
 	FD_ZERO(&read_set);
 	FD_ZERO(&write_set);
@@ -65,15 +78,15 @@ int Socket::Select(Socket * const *sockets,
 	int errorIndex = 0;
 	
 	for (i = 0; i < socketCount; i++) {
-		if (FD_ISSET(i, &read_set)) {
+		if (FD_ISSET(sockets[i]->m_socketfd, &read_set)) {
 			readable[readIndex++] = sockets[i];
 		}
 		
-		if (FD_ISSET(i, &write_set)) {
+		if (FD_ISSET(sockets[i]->m_socketfd, &write_set)) {
 			writeable[writeIndex++] = sockets[i];
 		}
 		
-		if (FD_ISSET(i, &error_set)) {
+		if (FD_ISSET(sockets[i]->m_socketfd, &error_set)) {
 			errored[errorIndex++] = sockets[i];
 		}
 	}

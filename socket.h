@@ -32,6 +32,9 @@ public:
 	static Socket *TcpSocket();
 	static Socket *UdpSocket();
 	
+	static int AddToSet(Socket* socket, fd_set *set, int lastMax);
+	static bool IsSet(Socket* socket, fd_set *set);
+	
 	static int Select(Socket * const *sockets, 
 					Socket **readable, Socket **writeable, Socket **errored, 
 					size_t socketCount, timeval *timeout);
@@ -52,3 +55,5 @@ public:
 };
 
 #endif // SOCKET_H
+
+struct stat;
