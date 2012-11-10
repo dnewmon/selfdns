@@ -55,11 +55,11 @@ int main(int argc, char **argv) {
 					response->recurse = 1;
 					response->recursiveAvailable = 1;
 					
-					response->questionCount = 1;
+					response->questionCount = 0;
 					response->answerCount = 1;
 					
 					response->answers = new DnsResource[1];
-					response->questions = new DnsResource[1];
+					response->questions = 0;
 					
 					DnsResource * ans = response->answers;
 					
@@ -74,11 +74,6 @@ int main(int argc, char **argv) {
 					ans->payload[2] = 0;
 					ans->payload[3] = 1;
 					
-					ans = response->questions;
-					ans->name = packet->questions[0].name;
-					ans->nClass = 1;
-					ans->nType = 1;
-					
 					unsigned char * entirePacket = DnsParsing::encodePacket(response, &length);
 					server->SendTo(entirePacket, length, 0, clientAddr, clientAddrLen);
 					
@@ -87,7 +82,6 @@ int main(int argc, char **argv) {
 					DnsParsing::releasePacket(packet);
 					
 					response->answers->name = 0;
-					response->questions->name = 0;
 					DnsParsing::releasePacket(response);
 					
 				} else if (Socket::IsSet(server, &write_set)) {
