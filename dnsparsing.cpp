@@ -49,12 +49,12 @@ DnsPacket * DnsParsing::decodePacket(unsigned char * buffer)
 
 void DnsParsing::decodeHeader(DnsHeader * header)
 {
-	header->id = htons(header->id);
-	header->flags = htons(header->flags);
-	header->answerCount = htons(header->answerCount);
-	header->questionCount = htons(header->questionCount);
-	header->resourceCount = htons(header->resourceCount);
-	header->additionalCount = htons(header->additionalCount);
+	header->id = ntohs(header->id);
+	header->flags = ntohs(header->flags);
+	header->answerCount = ntohs(header->answerCount);
+	header->questionCount = ntohs(header->questionCount);
+	header->authorityCount = ntohs(header->authorityCount);
+	header->additionalCount = ntohs(header->additionalCount);
 }
 
 unsigned char * DnsParsing::decodeResource(DnsPacket * packet, DnsResource * resource, unsigned char * buffer)
@@ -64,10 +64,12 @@ unsigned char * DnsParsing::decodeResource(DnsPacket * packet, DnsResource * res
 	DnsResourceRecord * record = resource;
 	memcpy(record, buffer, sizeof(DnsResourceRecord));
 	
-	record->nType = htons(record->nType);
-	record->nClass = htons(record->nClass);
-	record->ttl = htons(record->ttl);
-	record->length = htons(record->length);
+	buffer += sizeof(DnsResourceRecord);
+	
+	record->nType = ntohs(record->nType);
+	record->nClass = ntohs(record->nClass);
+	record->ttl = ntohs(record->ttl);
+	record->length = ntohs(record->length);
 	
 	resource->payload = buffer;
 	
@@ -121,20 +123,144 @@ char * DnsParsing::decodeName(DnsPacket * packet, unsigned char ** bufferArgumen
 	return name;
 }
 
+char * DnsParsing::encodeName(char * name, int * length)
+{
+	char * encoded = new char[strlen(name) + 2];
+	
+	int i = 0;
+	int lastIndex = 0;
+	int u = 1;
+	
+	while (name[i] != '\0')
+	{
+		if (name[i] == '.') {
+			encoded[lastIndex] = u - lastIndex - 1;
+			lastIndex = u;
+			u++;
+		} else {
+			encoded[u++] = name[i];
+		}
+		
+		i++;
+	}
+	
+	encoded[lastIndex] = u - lastIndex - 1;
+	encoded[u] = 0;
+	
+	*length = u + 1;
+	
+	return encoded;
+}
+
+void DnsParsing::encodeHeader(DnsHeader * header)
+{
+	header->id = htons(header->id);
+	header->flags = htons(header->flags);
+	header->answerCount = htons(header->answerCount);
+	header->questionCount = htons(header->questionCount);
+	header->authorityCount = htons(header->authorityCount);
+	header->additionalCount = htons(header->additionalCount);
+}
+
+void DnsParsing::encodeResource(DnsResource * resource)
+{
+	DnsResourceRecord * record = resource;
+
+	record->nType = htons(record->nType);
+	record->nClass = htons(record->nClass);
+	record->ttl = htons(record->ttl);
+	record->length = htons(record->length);
+}
+
+void mcopy(unsigned char ** dest, const void * source, int length) {
+	memcpy(*dest, source, length);
+	*dest += length;
+}
+
+unsigned char * DnsParsing::encodePacket(DnsPacket* packet, int * length)
+{
+	*length = sizeof(DnsHeader);
+	
+	char ** names = new char *[packet->answerCount + packet->questionCount];
+	int * nameLengths = new int[packet->answerCount + packet->questionCount];
+	
+	int i, u, temp;
+	
+	u = 0;
+	
+	for (i = 0; i < packet->answerCount; i++) {
+		names[u] = DnsParsing::encodeName(packet->answers[i].name, &nameLengths[u]);
+		*length += nameLengths[u] + packet->answers[i].length + sizeof(DnsResourceRecord);
+		u++;
+	}
+	
+	for (i = 0; i < packet->questionCount; i++) {
+		names[u] = DnsParsing::encodeName(packet->questions[i].name, &nameLengths[u]);
+		*length += nameLengths[u] + packet->questions[i].length + sizeof(DnsResourceRecord);
+		u++;
+	}
+	
+	unsigned char * firstByte = new unsigned char[*length];
+	unsigned char * entirePacket = firstByte;
+
+	DnsParsing::encodeHeader(packet);
+	mcopy(&entirePacket, packet, sizeof(DnsHeader));
+	DnsParsing::decodeHeader(packet);
+	
+	u = 0;
+	
+	for (i = 0; i < packet->answerCount; i++) {
+		temp = packet->answers[i].length;
+		DnsParsing::encodeResource(&packet->answers[i]);
+		
+		mcopy(&entirePacket, names[u], nameLengths[u]);
+		mcopy(&entirePacket, &packet->answers[i], sizeof(DnsResourceRecord));
+		mcopy(&entirePacket, packet->answers[i].payload, temp);
+		
+		delete [] names[u];
+		u++;
+	}
+	
+	for (i = 0; i < packet->questionCount; i++) {
+		temp = packet->questions[i].length;
+		DnsParsing::encodeResource(&packet->questions[i]);
+		
+		mcopy(&entirePacket, names[u], nameLengths[u]);
+		mcopy(&entirePacket, &packet->questions[i], sizeof(DnsResourceRecord));
+		mcopy(&entirePacket, packet->questions[i].payload, temp);
+		
+		delete [] names[u];
+		u++;
+	}
+	
+	delete [] names;
+	delete [] nameLengths;
+	
+	return firstByte;
+}
+
 void DnsParsing::releasePacket(DnsPacket * packet)
 {
 	int i;
 
-	for (i = 0; i < packet->questionCount; i++) {
-		cout << "Question: " << packet->questions[i].name << endl;
-	}
-	
 	for (i = 0; i < packet->answerCount; i++) {
-		delete [] packet->answers[i].name;
+		if (packet->answers[i].name != 0) {
+			delete [] packet->answers[i].name;
+		}
+		
+		/*if (packet->answers[i].payload != 0) {
+			delete [] packet->answers[i].payload;
+		}*/
 	}
 	
 	for (i = 0; i < packet->questionCount; i++) {
-		delete [] packet->questions[i].name;
+		if (packet->questions[i].name != 0) {
+			delete [] packet->questions[i].name;
+		}
+		
+		/*if (packet->questions[i].payload != 0) {
+			delete [] packet->questions[i].payload;
+		}*/
 	}
 	
 	delete [] packet->answers;

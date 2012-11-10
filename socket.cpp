@@ -126,6 +126,14 @@ int Socket::Accept(sockaddr* addr, socklen_t* addrlen)
 
 int Socket::Bind(sockaddr* my_addr, socklen_t addrlen)
 {
+	int yes=1;
+
+	// lose the pesky "Address already in use" error message
+	if (setsockopt(this->m_socketfd, SOL_SOCKET,SO_REUSEADDR, &yes, sizeof(int)) == -1) {
+		perror("setsockopt");
+		exit(1);
+	}
+
 	return bind(this->m_socketfd, my_addr, addrlen);
 }
 

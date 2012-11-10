@@ -31,7 +31,7 @@ struct DnsHeader
 	unsigned short flags;
 	unsigned short questionCount;
 	unsigned short answerCount;
-	unsigned short resourceCount;
+	unsigned short authorityCount;
 	unsigned short additionalCount;
 };
 
@@ -64,6 +64,11 @@ public:
 	static void decodeHeader(DnsHeader * header);
 	static unsigned char * decodeResource(DnsPacket * packet, DnsResource * resource, unsigned char * buffer);
 	static char * decodeName(DnsPacket * packet, unsigned char ** buffer);
+	
+	static char * encodeName(char * name, int * length);
+	static void encodeResource(DnsResource * resource);
+	static void encodeHeader(DnsHeader * header);
+	static unsigned char * encodePacket(DnsPacket* packet, int * length);
 	
 	static void releasePacket(DnsPacket * packet);
 };

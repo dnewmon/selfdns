@@ -21,8 +21,8 @@ int main(int argc, char **argv) {
 	if (server->Bind((sockaddr*)&serverAddr, sizeof(serverAddr)) == 0) {
 		cout << "Ready!" << endl;
 		
-		sockaddr clientAddr;
-		socklen_t clientAddrLen = sizeof(clientAddr);
+		sockaddr * clientAddr = (sockaddr *)malloc(256);
+		socklen_t clientAddrLen = 256;
 		unsigned char szBuffer[256];
 		
 		fd_set read_set, write_set, error_set;
@@ -42,18 +42,71 @@ int main(int argc, char **argv) {
 			
 			if (ready != 0) {
 				if (Socket::IsSet(server, &read_set)) {
-					int length = server->RecieveFrom(&szBuffer[0], 256, 0, &clientAddr, &clientAddrLen);
+					clientAddrLen = 256;
+					
+					int length = server->RecieveFrom(&szBuffer[0], 256, 0, clientAddr, &clientAddrLen);
+					
+					for (int z = 0; z < length; z++) {
+						cout << hex << (int)szBuffer[z] << " ";
+						if (z % 4 == 1 && z > 0) {
+							cout << endl;
+						}
+					}
+					
+					cout << endl << endl;
 					
 					DnsPacket * packet = DnsParsing::decodePacket(&szBuffer[0]);
 					
 					cout << "Answers: " << packet->answerCount << endl;
 					cout << "Questions: " << packet->questionCount << endl;
-					cout << "Resources: " << packet->resourceCount << endl;
+					cout << "Authorities: " << packet->authorityCount << endl;
 					cout << "Additional: " << packet->additionalCount << endl;
+					cout << endl;
+					
+					DnsPacket * response = new DnsPacket();
+					memcpy(response, packet, sizeof(DnsHeader));
+					
+					response->flags = ntohs(0x80);
+					
+					response->questionCount = 0;
+					response->answerCount = 1;
+					
+					response->answers = new DnsResource[1];
+					response->questions = 0;
+					
+					DnsResource * ans = response->answers;
+					
+					ans->name = packet->questions[0].name;
+					ans->nClass = 1;
+					ans->nType = 1;
+					ans->ttl = 0;
+					ans->length = 4;
+					ans->payload = new unsigned char[4];
+					ans->payload[0] = 1;
+					ans->payload[1] = 0;
+					ans->payload[2] = 0;
+					ans->payload[3] = 127;
+					
+					unsigned char * entirePacket = DnsParsing::encodePacket(response, &length);
+					server->SendTo(entirePacket, length, 0, clientAddr, clientAddrLen);
+					
+					
+					for (int z = 0; z < length; z++) {
+						cout << hex << (int)entirePacket[z] << " ";
+						if (z % 4 == 1 && z > 0) {
+							cout << endl;
+						}
+					}
+					
+					cout << endl;
+					
+					delete [] entirePacket;
 					
 					DnsParsing::releasePacket(packet);
 					
-					cout << "Recieved: " << length << endl;
+					ans->name = 0;
+					DnsParsing::releasePacket(response);
+					
 				} else if (Socket::IsSet(server, &write_set)) {
 					cout << "Writable" << endl;
 				} else if (Socket::IsSet(server, &error_set)) {
@@ -62,6 +115,7 @@ int main(int argc, char **argv) {
 			}
 		}
 		
+		free(clientAddr);
 	} else {
 		cout << "Unable to bind!" << endl;
 	}
