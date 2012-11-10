@@ -1,10 +1,8 @@
 selfdns
 =======
 
-A simple DNS server that resolves to itself when asked for any domain request.
+A simple *nix-based IPv4 DNS server that resolves any domain request to itself.
+
+Currently, it resolves any domain name to 127.0.0.1.
 
 
-Development Status
-==================
-
-This project is currently under development and will take a few weeks.
