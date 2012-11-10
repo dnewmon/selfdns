@@ -38,10 +38,10 @@ DnsPacket * DnsParsing::decodePacket(unsigned char * buffer)
 	int i;
 	
 	for (i = 0; i < packet->answerCount; i++) {
-		buffer = DnsParsing::decodeResource(packet, &packet->answers[i], buffer);
+		buffer = DnsParsing::decodeResource(packet, &packet->answers[i], buffer, false);
 	}
 	for (i = 0; i < packet->questionCount; i++) {
-		buffer = DnsParsing::decodeResource(packet, &packet->questions[i], buffer);
+		buffer = DnsParsing::decodeResource(packet, &packet->questions[i], buffer, true);
 	}
 	
 	return packet;
@@ -57,19 +57,26 @@ void DnsParsing::decodeHeader(DnsHeader * header)
 	header->additionalCount = ntohs(header->additionalCount);
 }
 
-unsigned char * DnsParsing::decodeResource(DnsPacket * packet, DnsResource * resource, unsigned char * buffer)
+unsigned char * DnsParsing::decodeResource(DnsPacket * packet, DnsResource * resource, unsigned char * buffer, bool question)
 {
 	resource->name = DnsParsing::decodeName(packet, &buffer);
 	
 	DnsResourceRecord * record = resource;
-	memcpy(record, buffer, sizeof(DnsResourceRecord));
+	bzero(record, sizeof(DnsResourceRecord));
 	
-	buffer += sizeof(DnsResourceRecord);
+	if (question) {
+		memcpy(record, buffer, sizeof(DnsQuestion));
+		buffer += sizeof(DnsQuestion);
+	} else {
+		memcpy(record, buffer, sizeof(DnsResourceRecord));
+		buffer += sizeof(DnsResourceRecord);
+		
+		record->ttl = ntohl(record->ttl);
+		record->length = ntohs(record->length);
+	}
 	
 	record->nType = ntohs(record->nType);
 	record->nClass = ntohs(record->nClass);
-	record->ttl = ntohs(record->ttl);
-	record->length = ntohs(record->length);
 	
 	resource->payload = buffer;
 	
@@ -168,7 +175,7 @@ void DnsParsing::encodeResource(DnsResource * resource)
 
 	record->nType = htons(record->nType);
 	record->nClass = htons(record->nClass);
-	record->ttl = htons(record->ttl);
+	record->ttl = htonl(record->ttl);
 	record->length = htons(record->length);
 }
 
@@ -188,15 +195,15 @@ unsigned char * DnsParsing::encodePacket(DnsPacket* packet, int * length)
 	
 	u = 0;
 	
-	for (i = 0; i < packet->answerCount; i++) {
-		names[u] = DnsParsing::encodeName(packet->answers[i].name, &nameLengths[u]);
-		*length += nameLengths[u] + packet->answers[i].length + sizeof(DnsResourceRecord);
+	for (i = 0; i < packet->questionCount; i++) {
+		names[u] = DnsParsing::encodeName(packet->questions[i].name, &nameLengths[u]);
+		*length += nameLengths[u] + sizeof(DnsQuestion);
 		u++;
 	}
 	
-	for (i = 0; i < packet->questionCount; i++) {
-		names[u] = DnsParsing::encodeName(packet->questions[i].name, &nameLengths[u]);
-		*length += nameLengths[u] + packet->questions[i].length + sizeof(DnsResourceRecord);
+	for (i = 0; i < packet->answerCount; i++) {
+		names[u] = DnsParsing::encodeName(packet->answers[i].name, &nameLengths[u]);
+		*length += nameLengths[u] + packet->answers[i].length + sizeof(DnsResourceRecord);
 		u++;
 	}
 	
@@ -209,6 +216,18 @@ unsigned char * DnsParsing::encodePacket(DnsPacket* packet, int * length)
 	
 	u = 0;
 	
+	
+	for (i = 0; i < packet->questionCount; i++) {
+		temp = packet->questions[i].length;
+		DnsParsing::encodeResource(&packet->questions[i]);
+		
+		mcopy(&entirePacket, names[u], nameLengths[u]);
+		mcopy(&entirePacket, &packet->questions[i], sizeof(DnsQuestion));
+		
+		delete [] names[u];
+		u++;
+	}
+	
 	for (i = 0; i < packet->answerCount; i++) {
 		temp = packet->answers[i].length;
 		DnsParsing::encodeResource(&packet->answers[i]);
@@ -216,18 +235,6 @@ unsigned char * DnsParsing::encodePacket(DnsPacket* packet, int * length)
 		mcopy(&entirePacket, names[u], nameLengths[u]);
 		mcopy(&entirePacket, &packet->answers[i], sizeof(DnsResourceRecord));
 		mcopy(&entirePacket, packet->answers[i].payload, temp);
-		
-		delete [] names[u];
-		u++;
-	}
-	
-	for (i = 0; i < packet->questionCount; i++) {
-		temp = packet->questions[i].length;
-		DnsParsing::encodeResource(&packet->questions[i]);
-		
-		mcopy(&entirePacket, names[u], nameLengths[u]);
-		mcopy(&entirePacket, &packet->questions[i], sizeof(DnsResourceRecord));
-		mcopy(&entirePacket, packet->questions[i].payload, temp);
 		
 		delete [] names[u];
 		u++;

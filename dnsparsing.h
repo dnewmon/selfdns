@@ -20,6 +20,9 @@
 #ifndef DNSPARSING_H
 #define DNSPARSING_H
 
+#pragma pack(push)
+#pragma pack(1)
+
 struct DnsHeader;
 struct DnsPacket;
 struct DnsResourceRecord;
@@ -28,9 +31,23 @@ struct DnsResource;
 struct DnsHeader
 {
 	unsigned short id;
-	unsigned short flags;
-	unsigned short questionCount;
-	unsigned short answerCount;
+	union {
+		unsigned short flags;
+		struct {
+			unsigned char responseCode: 4;
+			unsigned char reserved : 3;
+			unsigned char recursiveAvailable : 1;
+			
+			unsigned char recurse : 1;
+			unsigned char truncated : 1;
+			unsigned char authoritative : 1;
+			unsigned char opcode : 4;
+			unsigned char qr : 1;
+		};
+	};
+	
+	short questionCount;
+	short answerCount;
 	unsigned short authorityCount;
 	unsigned short additionalCount;
 };
@@ -43,11 +60,15 @@ struct DnsPacket : public DnsHeader
 	unsigned char * firstByte;
 };
 
-struct DnsResourceRecord
+struct DnsQuestion
 {
 	unsigned short nType;
 	unsigned short nClass;
-	unsigned short ttl;
+};
+
+struct DnsResourceRecord : public DnsQuestion
+{
+	unsigned int ttl;
 	unsigned short length;
 };
 
@@ -62,7 +83,7 @@ class DnsParsing
 public:
 	static DnsPacket * decodePacket(unsigned char * buffer);
 	static void decodeHeader(DnsHeader * header);
-	static unsigned char * decodeResource(DnsPacket * packet, DnsResource * resource, unsigned char * buffer);
+	static unsigned char * decodeResource(DnsPacket * packet, DnsResource * resource, unsigned char * buffer, bool question);
 	static char * decodeName(DnsPacket * packet, unsigned char ** buffer);
 	
 	static char * encodeName(char * name, int * length);
@@ -73,6 +94,7 @@ public:
 	static void releasePacket(DnsPacket * packet);
 };
 
-#endif // DNSPARSING_H
 
-class stat;
+#pragma pack(pop)
+
+#endif // DNSPARSING_H
